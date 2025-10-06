@@ -22,13 +22,12 @@ BLENDER_STATUS_FILE = os.path.join(COMMUNICATION_DIR, "blender_status.json")
 
 # Blender configuration
 # >>> VERIFY AND UPDATE THIS PATH! <<<
-# Using Blender 4.3 as specified in your last request
 BLENDER_EXECUTABLE = r"C:\Program Files\Blender Foundation\Blender 4.3\blender.exe"
 
 # Your model file
 MODEL_BLEND_FILE = r"D:\sem\char-morphing-scripts\base.blend"
 
-# Static startup script path (NEW: This file will execute the bridge script)
+# Static startup script path
 BLENDER_STARTUP_SCRIPT = os.path.join(os.getcwd(), "blender_startup.py")
 
 # Bridge script path (for reference only, the startup script uses it)
@@ -55,7 +54,6 @@ def is_blender_responsive():
     try:
         # Check if a response file exists from a previous request
         if os.path.exists(RESPONSE_FILE):
-            # This is a very quick check, if it exists, Blender is likely running
             return True
 
         # Send a quick test request
@@ -84,32 +82,45 @@ def is_blender_responsive():
     return False
 
 def start_blender_with_model():
-    """
-    Start Blender using the static startup script to load the bridge logic.
-    This replaces the dynamic f-string generation and temporary file writing.
-    """
+    """Start Blender in the background without creating a visible console window."""
     global blender_started_once
 
-    # Absolute paths are more reliable
     model_path = os.path.abspath(MODEL_BLEND_FILE)
-    startup_script_path = os.path.abspath(BLENDER_STARTUP_SCRIPT) # Use the static path
+    startup_script_path = os.path.abspath(BLENDER_STARTUP_SCRIPT)
 
     if not os.path.exists(model_path):
         return {"success": False, "error": f"Model file not found: {model_path}"}
-
     if not os.path.exists(BLENDER_EXECUTABLE):
         return {"success": False, "error": f"Blender executable not found: {BLENDER_EXECUTABLE}"}
-    
-    # Check for the NEW static startup file
     if not os.path.exists(startup_script_path):
-        return {"success": False, "error": f"Static startup script not found: {startup_script_path}. Please create the 'blender_startup.py' file."}
+        return {"success": False, "error": f"Static startup script not found: {startup_script_path}. Please ensure 'blender_startup.py' exists."}
+
+    # === WINDOWS SPECIFIC SETUP TO HIDE CONSOLE ===
+    startupinfo = None
+    if sys.platform == "win32":
+        # Create a STARTUPINFO structure to hide the console window.
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+    # =============================================
 
     try:
-        # Define the command using the static startup script path
+        # FIX: Added '--' separator to clearly distinguish the blend file from execution flags.
         cmd = [
             BLENDER_EXECUTABLE,
-            model_path,
-            "--python", startup_script_path, # Direct execution of the static file
+            
+            # 1. General flags that affect startup environment
+            "--factory-startup",
+            
+            # 2. The main file to load (POSITIONAL ARGUMENT)
+            model_path, 
+            
+            # 3. Separator required by Blender CLI
+            "--", 
+            
+            # 4. Execution flags (Must follow the separator)
+            "--python", startup_script_path,
+            "--persistent", # Flag to keep session alive for timers
             "--background",
         ]
 
@@ -119,12 +130,12 @@ def start_blender_with_model():
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0
+            startupinfo=startupinfo,
+            creationflags=0
         )
 
-        time.sleep(2)
+        time.sleep(5) # Increased sleep to give Blender time to truly settle or crash
         if process.poll() is not None:
-            # If Blender terminated immediately, capture and report the error output
             stdout, stderr = process.communicate()
             return {"success": False, "error": f"Blender process terminated immediately. Check Blender's security settings for running scripts. STDOUT: {stdout.decode()} STDERR: {stderr.decode()}"}
 
@@ -136,7 +147,6 @@ def start_blender_with_model():
             "process_id": process.pid
         }
     except Exception as e:
-        # This catches errors like File Not Found (if BLENDER_EXECUTABLE was wrong) or permission issues.
         return {"success": False, "error": f"Failed to start Blender: {str(e)}"}
 
 # =============================================================================
@@ -153,7 +163,6 @@ def start_blender():
         return jsonify({"success": True, "message": "Blender is already running and responsive!"})
     
     result = start_blender_with_model()
-    # Ensure a proper 500 status code is returned on failure
     return jsonify(result) if result["success"] else (jsonify(result), 500)
 
 @app.route('/generate', methods=['POST'])
