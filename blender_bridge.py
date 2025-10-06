@@ -366,7 +366,7 @@ def process_and_apply_smart_prompt(prompt: str, character_obj):
 # BLENDER BRIDGE CONFIGURATION
 # =============================================================================
 # Communication directory (CHANGE THIS PATH TO MATCH YOUR FRONTEND!)
-COMMUNICATION_DIR = r"C:\temp\blender_bridge" # Windows
+COMMUNICATION_DIR = r"D:\sem\char-morphing-scripts\blender_bridge" # Windows
 # COMMUNICATION_DIR = "/tmp/blender_bridge" # macOS/Linux
 REQUEST_FILE = os.path.join(COMMUNICATION_DIR, "character_request.json")
 RESPONSE_FILE = os.path.join(COMMUNICATION_DIR, "character_response.json")
