@@ -71,17 +71,17 @@ SYNONYM_MAP = {
     "clever": "intelligent",
     "bright": "intelligent",
     "sharp": "intelligent",
-   
+    
     # Strength synonyms
     "powerful": "strong",
     "muscular": "strong",
     "robust": "strong",
-   
+    
     # Beauty/attractiveness
     "beautiful": "attractive",
     "handsome": "attractive",
     "pretty": "attractive",
-   
+    
     # Age synonyms
     "elderly": "old",
     "senior": "old",
@@ -201,19 +201,19 @@ def apply_synonyms(words: List[str]) -> List[str]:
 def detect_personality_traits(words: List[str]) -> Dict[str, float]:
     """Detect personality traits and map them to facial features."""
     detected_traits = {}
-   
+    
     for word in words:
         if word in PERSONALITY_TO_FEATURES:
             detected_traits[word] = 1.0
         # Also check for contextual professions/roles
         elif word in CONTEXTUAL_FEATURES:
             detected_traits[word] = 1.0
-           
+            
     return detected_traits
 def map_traits_to_features(traits: Dict[str, float], detected_ethnicity: str) -> Dict[str, float]:
     """Convert personality traits to specific shape key modifications."""
     changes = {}
-   
+    
     for trait, intensity in traits.items():
         if trait in PERSONALITY_TO_FEATURES:
             trait_features = PERSONALITY_TO_FEATURES[trait]
@@ -221,11 +221,11 @@ def map_traits_to_features(traits: Dict[str, float], detected_ethnicity: str) ->
             trait_features = CONTEXTUAL_FEATURES[trait]
         else:
             continue
-           
+            
         for feature_part, modifiers in trait_features.items():
             if feature_part == "overall":
                 continue # Skip overall descriptors for now
-               
+                
             if feature_part in FEATURE_MAP:
                 for modifier, mod_intensity in modifiers.items():
                     if modifier in FEATURE_MAP[feature_part]:
@@ -237,20 +237,20 @@ def map_traits_to_features(traits: Dict[str, float], detected_ethnicity: str) ->
                         else:
                             final_key = shape_key_template.format(ethnicity=detected_ethnicity)
                             changes[final_key] = mod_intensity * intensity
-   
+    
     return changes
 def smart_prompt_analysis(prompt: str) -> Dict:
     """Main NLP analysis function."""
     keywords = extract_keywords(prompt)
     keywords = apply_synonyms(keywords)
-   
+    
     # Detect basic demographics
     detected_ethnicity = DEFAULT_ETHNICITY
     for keyword in keywords:
         if keyword in CONCEPT_MAP:
             detected_ethnicity = CONCEPT_MAP[keyword]
             break
-   
+    
     # Detect gender
     detected_gender = DEFAULT_GENDER
     for word in keywords:
@@ -260,16 +260,16 @@ def smart_prompt_analysis(prompt: str) -> Dict:
         elif word in GENDER_KEYWORDS["male"]:
             detected_gender = "male"
             break
-   
+    
     # Detect personality traits
     personality_traits = detect_personality_traits(keywords)
-   
+    
     # Detect age-related descriptors
     age_features = {}
     for keyword in keywords:
         if keyword in AGE_MAPPINGS:
             age_features.update(AGE_MAPPINGS[keyword])
-   
+    
     analysis_result = {
         "ethnicity": detected_ethnicity,
         "gender": detected_gender,
@@ -277,7 +277,7 @@ def smart_prompt_analysis(prompt: str) -> Dict:
         "age_features": age_features,
         "all_keywords": keywords
     }
-   
+    
     return analysis_result
 # =============================================================================
 # --- BLENDER HELPER FUNCTIONS ---
@@ -311,25 +311,25 @@ def apply_morph(obj, shape_key_name, value):
 def process_and_apply_smart_prompt(prompt: str, character_obj):
     """Enhanced prompt processing with NLP capabilities."""
     print(f"Processing prompt: '{prompt}'")
-   
+    
     reset_character_shape_keys(character_obj)
-   
+    
     # Step 1: Smart analysis
     analysis = smart_prompt_analysis(prompt)
     print(f"Analysis result: {analysis}")
-   
+    
     changes_to_apply = {}
-   
+    
     # Step 2: Apply ethnicity
     ethnicity = analysis["ethnicity"]
     if ethnicity != DEFAULT_ETHNICITY:
         ethnicity_key = f"L1_{ethnicity}"
         changes_to_apply[ethnicity_key] = 1.0
-   
+    
     # Step 3: Apply personality-based features
     personality_changes = map_traits_to_features(analysis["personality_traits"], ethnicity)
     changes_to_apply.update(personality_changes)
-   
+    
     # Step 4: Process remaining keywords using original logic
     words = analysis["all_keywords"]
     for i, word in enumerate(words):
@@ -338,28 +338,28 @@ def process_and_apply_smart_prompt(prompt: str, character_obj):
                 modifier = words[i-1]
                 if modifier in FEATURE_MAP[word]:
                     value = DEFAULT_VALUE
-                   
+                    
                     # Check for intensity
                     if i > 1 and words[i-2] in INTENSITY_MAP:
                         value = INTENSITY_MAP[words[i-2]]
-                   
+                    
                     shape_key_templates = FEATURE_MAP[word][modifier]
                     if not isinstance(shape_key_templates, list):
                         shape_key_templates = [shape_key_templates]
-                   
+                    
                     for template in shape_key_templates:
                         final_key = template.format(ethnicity=ethnicity)
                         changes_to_apply[final_key] = value
-   
+    
     # Step 5: Apply all changes
     print("\n--- Applying detected changes ---")
     if not changes_to_apply:
         print("No features detected. Applying default character.")
         return
-   
+    
     for shape_key, value in changes_to_apply.items():
         apply_morph(character_obj, shape_key, value)
-   
+    
     bpy.context.view_layer.update()
     print("--- Smart character generation complete! ---")
 # =============================================================================
@@ -375,63 +375,63 @@ is_monitoring = False
 def start_bridge_monitoring():
     """Start monitoring for character generation requests."""
     global is_monitoring
-   
+    
     if is_monitoring:
         print("Bridge monitoring is already active.")
         return
-   
+    
     # Ensure communication directory exists
     os.makedirs(COMMUNICATION_DIR, exist_ok=True)
-   
+    
     print(f"Starting Blender Bridge monitoring...")
     print(f"Watching directory: {COMMUNICATION_DIR}")
     print("Waiting for character generation requests...")
-   
+    
     is_monitoring = True
-   
+    
     # Register timer to check for requests every 0.5 seconds
     bpy.app.timers.register(check_for_requests, first_interval=0.5)
 def stop_bridge_monitoring():
     """Stop monitoring for requests."""
     global is_monitoring
     is_monitoring = False
-   
+    
     # Unregister the timer
     if bpy.app.timers.is_registered(check_for_requests):
         bpy.app.timers.unregister(check_for_requests)
-   
+    
     print("Bridge monitoring stopped.")
 def check_for_requests():
     """Timer function that checks for new character requests."""
     global is_monitoring
-   
+    
     if not is_monitoring:
         return None # Stop the timer
-   
+    
     try:
         if os.path.exists(REQUEST_FILE):
             # Read the request
             with open(REQUEST_FILE, 'r') as f:
                 request_data = json.load(f)
-           
+            
             print(f"Received request: {request_data['prompt']}")
-           
+            
             # Perform analysis to detect gender
             analysis = smart_prompt_analysis(request_data['prompt'])
             gender = analysis.get("gender", DEFAULT_GENDER)
-           
+            
             # Select the appropriate character based on gender
             if gender == "female":
                 char_name = "mb_female"
             else:
                 char_name = "mb_male"
-           
+            
             character = get_object(char_name)
-           
+            
             if character:
                 # Use the enhanced NLP function
                 process_and_apply_smart_prompt(request_data['prompt'], character)
-               
+                
                 response_data = {
                     "timestamp": datetime.now().isoformat(),
                     "prompt": request_data['prompt'],
@@ -445,14 +445,14 @@ def check_for_requests():
                     "status": "error",
                     "message": f"Could not find character object for {gender} in Blender scene."
                 }
-           
+            
             # Send response
             with open(RESPONSE_FILE, 'w') as f:
                 json.dump(response_data, f)
-           
+            
             # Remove request file
             os.remove(REQUEST_FILE)
-           
+            
     except Exception as e:
         print(f"Error processing request: {e}")
         # Send error response
@@ -463,11 +463,11 @@ def check_for_requests():
         }
         with open(RESPONSE_FILE, 'w') as f:
             json.dump(error_response, f)
-       
+        
         # Try to remove request file
         if os.path.exists(REQUEST_FILE):
             os.remove(REQUEST_FILE)
-   
+    
     return 0.5 # Continue checking every 0.5 seconds
 # =============================================================================
 # BLENDER UI PANEL (Optional - adds buttons to Blender UI)
@@ -508,7 +508,7 @@ class MESH_OT_test_generation(bpy.types.Operator):
     bl_idname = "mesh.test_generation"
     bl_label = "Test Generation"
     def execute(self, context):
-        test_prompt = "Generate an intelligent looking man with sharp features"  # Change to test female: "Generate an intelligent looking woman"
+        test_prompt = "Generate an intelligent looking man with sharp features"   # Change to test female: "Generate an intelligent looking woman"
         analysis = smart_prompt_analysis(test_prompt)
         gender = analysis.get("gender", DEFAULT_GENDER)
         if gender == "female":
@@ -557,10 +557,10 @@ if __name__ == "__main__":
         "generate a gentle kind teacher",
         "create a fierce warrior"
     ]
-   
+    
     # Use the first prompt or modify as needed
     user_prompt = test_prompts[0]
-   
+    
     analysis = smart_prompt_analysis(user_prompt)
     gender = analysis.get("gender", DEFAULT_GENDER)
     if gender == "female":
