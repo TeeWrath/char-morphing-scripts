@@ -1,3 +1,4 @@
 *.blend
 myenv/
 env/
+.env
